@@ -1,8 +1,8 @@
-// ...existing code...
 import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
 import Loader from './Loader.jsx';
 import ReactPaginate from 'react-paginate';
+import Modal from './Modal.jsx';
 
 
 const Cards = () => {
@@ -15,30 +15,73 @@ const Cards = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemPerPage, setItemPerPage] = useState(12);
-  const [pageCount, setPageCount] =useState(Math.ceil(totalRecords / itemPerPage)); // Assuming 10 records per page
+  const [pageCount, setPageCount] = useState(Math.ceil(totalRecords / itemPerPage)); 
+  const [query, setQuery] = useState('');
+  const [homeworldSpecies, setHomeworldSpecies] = useState({});
+  const [homeWorldSpeciesFilter, setHomeWorldSpeciesFilter] = useState('');
+
+
+  async function fetchData() {
+    setLoading(true);
+
+    let apiUrl = `https://swapi.dev/api/people`;
+    const queryParams = [];
+    if(currentPage) {
+      queryParams.push(`page=${currentPage}`);
+    }
+    if(query) {
+      queryParams.push(`search=${encodeURIComponent(query)}`);
+    }
+    if (homeWorldSpeciesFilter) {
+      queryParams.push(`homeworld=${encodeURIComponent(homeWorldSpeciesFilter)}`);
+    }
+    if (queryParams.length > 0) {
+      apiUrl += `?${queryParams.join('&')}`;
+    }
+
+    try {
+      // SWAPI supports page query param. Pages are 1-indexed.
+      const res = await axios.get(apiUrl);
+      setData(res.data.results || []);
+      if (res.data.count) {
+        const pgCount = Math.ceil(res.data.count / itemPerPage);
+        setPageCount(pgCount);
+        setTotalRecords(res.data.count);
+      }
+    } catch (err) {
+      setError("Failed to fetch data. Please try again later.");
+      console.error("API error:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchHomeworldSpecies() {
+    let url = `https://swapi.dev/api/species`;
+
+    
+    try {
+      // SWAPI supports page query param. Pages are 1-indexed.
+      const res = await axios.get(url);
+      setHomeworldSpecies(res.data.results || []);
+    } catch (err) {
+      setError("Failed to fetch data. Please try again later.");
+      console.error("API error:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
 
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        // SWAPI supports page query param. Pages are 1-indexed.
-        const res = await axios.get(`https://swapi.dev/api/people/?page=${currentPage}`);
-        setData(res.data.results || []);
-        if (res.data.count) {
-          const pgCount = Math.ceil(res.data.count / itemPerPage);
-          setPageCount(pgCount);
-          setTotalRecords(res.data.count);
-        }
-      } catch (err) {
-        setError("Failed to fetch data. Please try again later.");
-        console.error("API error:", err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
+    
     fetchData();
-  }, [currentPage, itemPerPage]);
+  }, [currentPage, query, homeWorldSpeciesFilter]);
+
+  useEffect(() => {
+    fetchHomeworldSpecies();
+  }, []);
 
   useEffect(() => {
     function onKey(e) {
@@ -68,7 +111,6 @@ const Cards = () => {
   };
 
   const pageChanged = (event) => {
-    // ReactPaginate provides 0-indexed selected value
     const newPage = (event?.selected ?? 0) + 1;
     setCurrentPage(newPage);
   }
@@ -76,17 +118,61 @@ const Cards = () => {
   const openModal = (person) => setModalPerson(person);
   const closeModal = () => setModalPerson(null);
 
-  useEffect(() => {
-    console.log("Current Page:", currentPage);
-  },[currentPage]);
+
+  const speciesColors = {
+    1: 'bg-blue-200',
+    2: 'bg-green-200',
+    3: 'bg-brown-200',
+    4: 'bg-purple-200',
+    6: 'bg-gray-200',
+    7: 'bg-yellow-200',
+    8: 'bg-cyan-200',
+    9: 'bg-purple-200',
+    10: 'bg-indigo-200',
+    11: 'bg-emerald-200',
+    default: 'bg-gray-200',
+  };
 
   return (
     <div className="min-h-screen py-10 px-4 bg-gradient-to-br from-gray-100 via-gray-200 to-gray-300">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-8 text-center">
+        <header className="mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">
             Star Wars <span className="text-indigo-600">Characters</span>
           </h1>
+          <div className="w-full sm:w-auto flex gap-2">
+            <div className="relative">
+              <input
+                type="search"
+                placeholder="Search characters..."
+                className="w-full sm:w-64 px-4 py-2 pl-10 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all duration-200 bg-white"
+                onInput={(e) => {
+                  const query = e.target.value;
+                  setQuery(query);
+                }}
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="mt-3 sm:mt-0 sm:ml-3">
+              <div className="relative">
+                <select 
+                  className="w-full sm:w-48 appearance-none px-4 py-2 pr-10 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all duration-200 bg-white text-gray-700"
+                  onChange={(e) => {
+                    // Add your filter logic here
+                    setHomeWorldSpeciesFilter(e.target.value);
+                    console.log(e.target.value);
+                  }}
+                >
+                  <option value="">Filter by Species</option>
+                  {homeworldSpecies.length > 0 && homeworldSpecies.map((species, i) => (
+                    <option key={i} value={species.name}>{species.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
         </header>
 
         {loading && (
@@ -116,10 +202,14 @@ const Cards = () => {
               const id = person.url || person.name;
               const isFav = favs.has(id);
 
+              { person }
+
+              const speciesId = person?.species[0]?.split('/').slice(-2, -1)[0] || 'default'; // Extracting ID from species URL
+
               return (
                 <article
                   key={id}
-                  className="relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                  className={`relative]} rounded-2xl overflow-hidden shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300`}
                 >
                   <div className="relative h-44 sm:h-48 overflow-hidden">
                     <img
@@ -145,9 +235,8 @@ const Cards = () => {
                     <button
                       onClick={() => toggleFav(id)}
                       aria-pressed={isFav}
-                      className={`absolute right-3 top-3 p-2 rounded-full backdrop-blur-sm transition ${
-                        isFav ? 'bg-indigo-600 text-white' : 'bg-white/30 text-white'
-                      }`}
+                      className={`absolute right-3 top-3 p-2 rounded-full backdrop-blur-sm transition ${isFav ? 'bg-indigo-600 text-white' : 'bg-white/30 text-white'
+                        }`}
                       title={isFav ? 'Remove favorite' : 'Add to favorites'}
                     >
                       {isFav ? (
@@ -162,30 +251,26 @@ const Cards = () => {
                     </button>
                   </div>
 
-                  <div className="p-4 sm:p-5 bg-white">
+                  <div className={`p-4 sm:p-5 ${speciesColors[speciesId]}`}>
                     <div className="flex items-center justify-between">
-                      {/* <div className="text-sm text-gray-700">
-                        <p className="font-medium">Height: <span className="text-gray-600 font-normal">{person.height} cm</span></p>
-                      </div> */}
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openModal(person)}
-                          className="px-3 py-1 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition"
-                          aria-haspopup="dialog"
-                        >
-                          Details
-                        </button>
+                      <button
+                        onClick={() => openModal(person)}
+                        className="px-3 py-1 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition cursor-pointer"
+                        aria-haspopup="dialog"
+                      >
+                        Details
+                      </button>
 
-                        <a
-                          href={person.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1 bg-gray-800 text-white text-sm rounded-md hover:bg-gray-900 transition"
-                        >
-                          View Profile
-                        </a>
-                      </div>
+                      <a
+                        href={person.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-gray-800 text-white text-sm rounded-md hover:bg-gray-900 transition cursor-pointer"
+                      >
+                        View Profile
+                      </a>
+
                     </div>
                   </div>
                 </article>
@@ -194,80 +279,8 @@ const Cards = () => {
           </div>
         )}
 
-        {modalPerson && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
-          >
-            <div
-              className="absolute inset-0 bg-black/50 transition-opacity"
-              onClick={closeModal}
-              aria-hidden="true"
-            />
-            <div className="relative bg-white rounded-xl overflow-hidden shadow-2xl max-w-2xl w-full mx-auto transform transition-all">
-              <div className="relative">
-                <img
-                  src={`https://picsum.photos/seed/${encodeURIComponent(modalPerson.name)}/1200/600`}
-                  alt={`${modalPerson.name} hero`}
-                  className="w-full h-44 sm:h-56 object-cover"
-                />
-                <button
-                  ref={closeBtnRef}
-                  onClick={closeModal}
-                  className="absolute right-3 top-3 p-2 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow focus:outline-none"
-                  aria-label="Close details"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                    <path fillRule="evenodd" d="M6.293 6.293a1 1 0 011.414 0L10 8.586l2.293-2.293a1 1 0 011.414 1.414L11.414 10l2.293 2.293a1 1 0 01-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 01-1.414-1.414L8.586 10 6.293 7.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
+        {modalPerson && <Modal modalPerson={modalPerson} closeModal={closeModal} closeBtnRef={closeBtnRef} />}
 
-              <div className="p-6">
-                <h2 id="modal-title" className="text-2xl font-semibold text-gray-900">{modalPerson.name}</h2>
-                <p className="mt-2 text-sm text-gray-600">{modalPerson.birth_year} • {modalPerson.gender}</p>
-
-                <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-gray-700">
-                  <div>
-                    <p className="font-medium text-gray-800">Height</p>
-                    <p className="mt-1">{modalPerson.height} cm</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Mass</p>
-                    <p className="mt-1">{modalPerson.mass} kg</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Eye Color</p>
-                    <p className="mt-1">{modalPerson.eye_color}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Hair Color</p>
-                    <p className="mt-1">{modalPerson.hair_color}</p>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    onClick={closeModal}
-                    className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition"
-                  >
-                    Close
-                  </button>
-                  <a
-                    href={modalPerson.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
-                  >
-                    Open on SWAPI
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
       <div className="mt-8">
         <div className="flex items-center justify-between max-w-6xl mx-auto px-4">
@@ -298,11 +311,10 @@ const Cards = () => {
         </div>
       </div>
     </div>
-    
 
-    
+
+
   );
 };
 
 export default Cards;
-// ...existing code...
